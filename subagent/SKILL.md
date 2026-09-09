@@ -13,12 +13,46 @@ Use this skill only when the root is **Astra**, **Sol Max**, or **Sol Ultra**.
 
 - Sol roots MUST NOT delegate to Astra.
 - Astra roots may delegate to Astra, Sol, Terra, or Luna, but Astra subagents are exceptional.
-- scientific/technical writing, research interpretation, papers/books, LaTeX, literature/results → `scientific-writing/SKILL.md`
-- software implementation, debugging, refactoring, testing, build/CI, repository/code review → `code-development/SKILL.md`
+- scientific/technical writing, research interpretation, papers/books, LaTeX, literature/results → root may load `scientific-writing/SKILL.md`
+- software implementation, debugging, refactoring, testing, build/CI, repository/code review → root may load `code-development/SKILL.md`
 - mixed task → split workstreams first; load each scenario only for its own workstream
 - simple/local/deterministic task → do it directly when delegation adds no value
 
 Do not load both scenario skills unless both are needed.
+
+## Skill-read policy
+
+**The root reads and resolves relevant Skills. Workers do not re-read them by default.**
+
+For every worker dispatch, default to:
+
+```text
+Allowed skill reads: NONE
+```
+
+If the root has already read a relevant project Skill, scenario Skill, workflow Skill, `AGENTS.md`, or other instruction source:
+
+1. extract only the constraints needed by the worker
+2. pass those constraints under `Inherited constraints`
+3. do not tell the worker to rediscover or re-read the original Skill
+
+A worker MUST NOT open `SKILL.md`, project Skills, scenario Skills, `AGENTS.md`, or other workflow instructions unless the root explicitly lists the exact file under `Allowed skill reads`.
+
+If a required rule is missing, the worker must return `NEEDS_CONTEXT` with the missing item instead of opening a Skill on its own.
+
+Skill access is explicit opt-in. It is not inherited merely because the task relates to a Skill.
+
+The root may authorize a Skill read only when distilled constraints are insufficient for the bounded task. The dispatch must name the exact Skill and briefly state why it is needed.
+
+Example:
+
+```text
+Allowed skill reads:
+- .agents/skills/latex/SKILL.md
+Reason: worker owns the complete project-specific LaTeX validation workflow.
+```
+
+Otherwise keep `Allowed skill reads: NONE`.
 
 ## Dispatch contract
 
@@ -27,13 +61,23 @@ Every subagent dispatch MUST explicitly specify:
 - objective
 - model
 - reasoning effort
-- allowed reads and writes
-- supplied context/constraints
+- allowed file reads
+- allowed skill reads
+- allowed writes
+- inherited constraints
+- supplied task context
 - forbidden actions
 - expected output
 - verification condition
 
 Never rely on inherited model or reasoning settings. A worker must not expand scope without returning the need to the root.
+
+Recommended default:
+
+```text
+Allowed skill reads: NONE
+Inherited constraints: only the task-relevant rules already resolved by the root
+```
 
 ## Context levels
 
@@ -41,12 +85,14 @@ Use the lowest sufficient level:
 
 - `NONE` — task contract only
 - `FRAGMENT` — extracted rules/excerpts/interfaces/results
-- `LOCAL` — one directly relevant skill/reference/file/module or bounded set
+- `LOCAL` — one directly relevant reference/file/module or explicitly authorized Skill
 - `FULL` — broad instructions only because the assigned decision is genuinely project-wide
 
 Default: `NONE` or `FRAGMENT`. `FULL` requires a concrete reason.
 
-Model strength, reasoning effort, and context size are independent. Never load a full skill when an extracted rule is enough.
+Model strength, reasoning effort, and context size are independent. Never load a full Skill when extracted rules are enough.
+
+`LOCAL` or `FULL` context does not automatically grant Skill-read permission. `Allowed skill reads` remains separately controlled.
 
 ## Model and reasoning
 
@@ -75,16 +121,16 @@ Otherwise Ultra is forbidden. A subagent must never upgrade itself to Ultra. Dif
 
 When a worker struggles, diagnose before spending more compute:
 
-1. missing context → add only the missing context
+1. missing rule/context → return `NEEDS_CONTEXT`; root supplies only the missing material
 2. task too broad → split or narrow it
 3. model mismatch → upgrade the model
 4. reasoning depth genuinely insufficient → raise reasoning effort
 
-Do not use higher reasoning to compensate for missing files, information, permissions, or an unclear contract.
+Do not let a worker compensate for missing context by browsing Skills or broad project instructions. Do not use higher reasoning to compensate for missing files, information, permissions, or an unclear contract.
 
 ## Shared boundaries
 
-- The root owns global policy, dependency ordering, integration, and final acceptance unless explicitly delegated.
+- The root owns global policy, Skill interpretation, dependency ordering, integration, and final acceptance unless explicitly delegated.
 - Workers may modify only assigned files/regions. Avoid overlapping parallel writes; serialize overlap through one owner/integrator.
 - Use deterministic tools for deterministic questions.
 - Commit, push, publish, deploy, delete, merge, or other external/irreversible actions require explicit assignment.
