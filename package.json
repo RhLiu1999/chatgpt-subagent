@@ -1,0 +1,38 @@
+{
+  "name": "chatgpt-subagent",
+  "version": "1.0.0",
+  "description": "Lightweight subagent orchestration skill for ChatGPT, ChatGPT Work, and Codex.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Renhui Liu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RhLiu1999/chatgpt-subagent.git"
+  },
+  "homepage": "https://github.com/RhLiu1999/chatgpt-subagent#readme",
+  "bugs": {
+    "url": "https://github.com/RhLiu1999/chatgpt-subagent/issues"
+  },
+  "bin": {
+    "chatgpt-subagent": "./bin/chatgpt-subagent.js"
+  },
+  "files": [
+    "bin",
+    "subagent",
+    "README.md",
+    "README_EN.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "chatgpt",
+    "chatgpt-work",
+    "codex",
+    "agent",
+    "subagent",
+    "agent-skills",
+    "orchestration"
+  ]
+}
