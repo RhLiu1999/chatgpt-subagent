@@ -28,7 +28,7 @@ Hard boundaries:
 
 ### npm / npx (recommended)
 
-After the first npm release is published, install directly with `npx` without adding the package to your project dependencies.
+Install directly with `npx` without adding the package to your project dependencies.
 
 #### Project-level installation
 
