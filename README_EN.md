@@ -149,6 +149,7 @@ The root `SKILL.md` owns only:
 - reasoning-effort rules
 - minimum-context rules
 - Skill-read permissions
+- subagent usage reporting
 - read/write and external-action boundaries
 - escalation after failure
 
@@ -275,6 +276,28 @@ Inherited constraints: only task-relevant rules already resolved by the root
 
 The root agent remains responsible for global understanding, Skill interpretation, decomposition, dependency ordering, model/context selection, final verification, and integration.
 
+### Root must report subagent usage concisely
+
+Whenever one or more subagents are used, the root's final response must include a **very short subagent report**. Use one line per subagent and include only:
+
+- model
+- reasoning effort
+- context level
+- Skill-read permission
+- access mode when useful (`read-only` or `write:<scope>`)
+- compact result
+
+Recommended format:
+
+```text
+Luna | Low | FRAGMENT | Skills: NONE | read-only | Result: 3 references verified
+Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | Result: edit completed, checks passed
+```
+
+Do not include chain-of-thought, hidden reasoning, tool-by-tool logs, reading diaries, or long dispatch prompts in this report.
+
+If no subagent was used, no report is required.
+
 ## Reasoning levels
 
 ### Luna
@@ -382,6 +405,7 @@ understand
 → delegate
 → verify
 → integrate
+→ report subagent configuration and result concisely
 ```
 
 ## References
