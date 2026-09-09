@@ -149,6 +149,7 @@ chatgpt-subagent/
 - 思考等级规则
 - 最小上下文规则
 - Skill 读取权限
+- 子 Agent 调用报告
 - 读写与外部操作边界
 - 失败后的升级策略
 
@@ -275,6 +276,28 @@ Inherited constraints: 仅包含主 Agent 已解析出的当前任务相关规�
 
 主 Agent 负责全局理解、Skill 解释、拆分、依赖排序、模型选择、上下文选择、最终验证和集成。
 
+### 主 Agent 必须简洁报告子 Agent 调用
+
+只要本轮使用了一个或多个子 Agent，主 Agent 的最终回复必须附带一个**非常简短**的调用报告。每个子 Agent 一行，只报告：
+
+- 模型
+- reasoning effort
+- context level
+- Skill 读取权限
+- 必要时标记 `read-only` 或写入范围
+- 极简结果
+
+推荐格式：
+
+```text
+Luna | Low | FRAGMENT | Skills: NONE | read-only | 结果：3 处引用已核对
+Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | 结果：修改完成，检查通过
+```
+
+不要在这个报告里输出思维链、隐藏推理、逐工具日志、阅读流水账或长篇 dispatch prompt。
+
+如果本轮没有调用子 Agent，则不需要额外报告。
+
 ## 思考等级
 
 ### Luna
@@ -381,6 +404,7 @@ Subagent 出现问题时，不应立即提升 reasoning，也不应自行扩大 
 → 派遣 Subagent
 → 验证结果
 → 主 Agent 集成
+→ 简洁报告子 Agent 配置和结果
 ```
 
 ## 参考
