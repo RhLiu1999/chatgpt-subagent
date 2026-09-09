@@ -4,9 +4,9 @@
 
 A lightweight Subagent orchestration Skill for **ChatGPT / ChatGPT Work / Codex**.
 
-`chatgpt-subagent` helps capable root agents decompose and delegate bounded tasks across models while explicitly controlling model selection, reasoning effort, context size, read/write permissions, execution boundaries, and verification.
+`chatgpt-subagent` helps capable root agents decompose and delegate bounded tasks across models while explicitly controlling model selection, reasoning effort, context size, read/write permissions, Skill-read permissions, execution boundaries, and verification.
 
-The goal is not to maximize the number of Subagents. The goal is to make each delegation bounded, efficient, and auditable while reducing unnecessary use of expensive models and oversized context.
+The goal is not to maximize the number of Subagents. The goal is to make each delegation bounded, efficient, and auditable while reducing unnecessary use of expensive models, oversized context, and repeated Skill reads.
 
 ## Scope
 
@@ -141,13 +141,14 @@ chatgpt-subagent/
         └── SKILL.md
 ```
 
-The root `SKILL.md` is intentionally small. It owns only:
+The root `SKILL.md` owns only:
 
 - whether delegation is appropriate
 - scenario routing
 - model boundaries
 - reasoning-effort rules
 - minimum-context rules
+- Skill-read permissions
 - read/write and external-action boundaries
 - escalation after failure
 
@@ -162,11 +163,58 @@ Subagents do not inherit full project context or complete Skills by default.
 ```text
 NONE      Dispatch contract only
 FRAGMENT  Task-specific rules, excerpts, interfaces, or results
-LOCAL     One directly relevant Skill/reference/file/module or bounded set
+LOCAL     One directly relevant reference/file/module, or an explicitly authorized Skill
 FULL      Broad context only when the assigned decision is genuinely project-wide
 ```
 
 The normal default is `NONE / FRAGMENT`. `FULL` requires a concrete reason.
+
+### Subagents do not re-read Skills by default
+
+The root agent reads, interprets, and resolves relevant Skills. It then passes only the constraints needed for the bounded child task.
+
+Default dispatch policy:
+
+```text
+Allowed skill reads: NONE
+```
+
+If the root has already read a project Skill, scenario Skill, `AGENTS.md`, or another workflow instruction source:
+
+```text
+Root reads Skill
+→ extracts only task-relevant constraints
+→ places them under Inherited constraints
+→ child executes directly
+```
+
+Not:
+
+```text
+Root reads Skill
+→ dispatches task
+→ child reads the same Skill again
+```
+
+A child must not open `SKILL.md`, project Skills, scenario Skills, `AGENTS.md`, or other workflow instructions unless the root explicitly lists the exact file under `Allowed skill reads`.
+
+If a required rule is missing, the child should return:
+
+```text
+NEEDS_CONTEXT
+```
+
+and identify the missing item. The root then supplies the smallest necessary addition instead of allowing the child to broaden its own Skill reads.
+
+Skill-read permission and context level are independent controls. `LOCAL` or `FULL` context does not automatically grant permission to read Skills.
+
+The root should authorize a Skill read only when distilled constraints are insufficient for the bounded task, for example:
+
+```text
+Allowed skill reads:
+- .agents/skills/latex/SKILL.md
+Reason: worker owns the complete project-specific LaTeX validation workflow.
+```
 
 ### Model, reasoning, and context are independent
 
@@ -208,15 +256,24 @@ Every delegated task should explicitly define at least:
 Objective
 Model
 Reasoning effort
-Allowed reads
+Allowed file reads
+Allowed skill reads
 Allowed writes
-Required context
+Inherited constraints
+Supplied task context
 Forbidden actions
 Expected output
 Verification criterion
 ```
 
-The root agent remains responsible for global understanding, decomposition, dependency ordering, model/context selection, final verification, and integration.
+Recommended default:
+
+```text
+Allowed skill reads: NONE
+Inherited constraints: only task-relevant rules already resolved by the root
+```
+
+The root agent remains responsible for global understanding, Skill interpretation, decomposition, dependency ordering, model/context selection, final verification, and integration.
 
 ## Reasoning levels
 
@@ -280,11 +337,11 @@ Ultra is a special budget-use mode, not a normal quality tier.
 
 ## Failure and escalation
 
-Do not immediately increase reasoning effort when a Subagent struggles.
+Do not immediately increase reasoning effort when a Subagent struggles, and do not allow it to broaden Skill reads on its own.
 
 ```text
-Missing context
-→ provide only the missing context
+Missing rule or context
+→ return NEEDS_CONTEXT; root supplies only the missing material
 
 Task scope too broad
 → narrow or restructure the task
@@ -297,7 +354,7 @@ but reasoning depth is insufficient
 → increase reasoning effort
 ```
 
-Do not use additional reasoning to compensate for missing files, permissions, information, or an unclear task contract.
+Do not use additional reasoning or repeated full-Skill reads to compensate for missing files, permissions, information, or an unclear task contract.
 
 ## Scenario policies
 
@@ -315,13 +372,13 @@ For mixed tasks, split the workstreams first and load the corresponding scenario
 
 ```text
 understand
+→ root reads required Skills
 → decide whether delegation is useful
 → decompose into bounded tasks
-→ select scenario policy
-→ select model
-→ select reasoning effort
+→ extract task-specific constraints
+→ default Allowed skill reads to NONE
+→ select model and reasoning effort
 → provide minimum necessary context
-→ define read/write boundaries
 → delegate
 → verify
 → integrate
