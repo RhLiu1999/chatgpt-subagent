@@ -4,9 +4,9 @@
 
 面向 **ChatGPT / ChatGPT Work / Codex** 的轻量级 Subagent 调度 Skill。
 
-`chatgpt-subagent` 用于帮助高能力主 Agent 将任务拆分并委派给不同模型，同时显式控制模型、思考等级、上下文范围、读写权限、执行边界和验证方式。
+`chatgpt-subagent` 用于帮助高能力主 Agent 将任务拆分并委派给不同模型，同时显式控制模型、思考等级、上下文范围、读写权限、Skill 读取权限、执行边界和验证方式。
 
-它的目标不是尽可能多地创建 Subagent，而是让每一次委派都具有明确边界，并尽量减少不必要的高能力模型调用和上下文消耗。
+它的目标不是尽可能多地创建 Subagent，而是让每一次委派都具有明确边界，并尽量减少不必要的高能力模型调用、上下文消耗和重复 Skill 读取。
 
 ## 适用范围
 
@@ -148,6 +148,7 @@ chatgpt-subagent/
 - 模型边界
 - 思考等级规则
 - 最小上下文规则
+- Skill 读取权限
 - 读写与外部操作边界
 - 失败后的升级策略
 
@@ -162,11 +163,58 @@ Subagent 默认不继承完整项目上下文，也不默认读取完整 Skill�
 ```text
 NONE      仅使用派遣合同
 FRAGMENT  只提供任务相关规则、摘录、接口或结果
-LOCAL     读取一个直接相关的 Skill / reference / 文件 / 局部模块
+LOCAL     读取一个直接相关的 reference / 文件 / 局部模块，或显式授权的 Skill
 FULL      只有任务确实需要项目级判断时才读取广泛上下文
 ```
 
 默认优先 `NONE / FRAGMENT`，`FULL` 必须有具体理由。
+
+### 子 Agent 默认禁止重复读取 Skill
+
+主 Agent 负责读取、理解并解析相关 Skill，然后只把当前子任务需要的规则传给子 Agent。
+
+默认派遣策略：
+
+```text
+Allowed skill reads: NONE
+```
+
+如果主 Agent 已经读取了项目 Skill、场景 Skill、`AGENTS.md` 或其他工作流说明：
+
+```text
+主 Agent 读取 Skill
+→ 提取当前子任务真正需要的约束
+→ 写入 Inherited constraints
+→ 子 Agent 直接执行
+```
+
+而不是：
+
+```text
+主 Agent 读取 Skill
+→ 派发任务
+→ 子 Agent 再次读取同一份 Skill
+```
+
+子 Agent 不得自行打开 `SKILL.md`、项目 Skill、场景 Skill、`AGENTS.md` 或其他工作流说明。只有主 Agent 在 `Allowed skill reads` 中显式列出具体文件时才允许读取。
+
+如果发现缺少必要规则，子 Agent 应返回：
+
+```text
+NEEDS_CONTEXT
+```
+
+并说明缺少什么，由主 Agent 补充最小必要内容，而不是自行扩大读取范围。
+
+Skill 读取权限与上下文等级是两个独立控制项。即使上下文等级是 `LOCAL` 或 `FULL`，也不会自动获得 Skill 读取权限。
+
+只有当压缩后的约束确实不足以完成封闭任务时，主 Agent 才应显式授权某个具体 Skill，例如：
+
+```text
+Allowed skill reads:
+- .agents/skills/latex/SKILL.md
+Reason: worker owns the complete project-specific LaTeX validation workflow.
+```
 
 ### 模型、思考等级和上下文独立
 
@@ -208,15 +256,24 @@ reasoning effort
 Objective
 Model
 Reasoning effort
-Allowed reads
+Allowed file reads
+Allowed skill reads
 Allowed writes
-Required context
+Inherited constraints
+Supplied task context
 Forbidden actions
 Expected output
 Verification criterion
 ```
 
-主 Agent 负责全局理解、拆分、依赖排序、模型选择、上下文选择、最终验证和集成。
+推荐默认值：
+
+```text
+Allowed skill reads: NONE
+Inherited constraints: 仅包含主 Agent 已解析出的当前任务相关规则
+```
+
+主 Agent 负责全局理解、Skill 解释、拆分、依赖排序、模型选择、上下文选择、最终验证和集成。
 
 ## 思考等级
 
@@ -280,11 +337,11 @@ Ultra 不是普通质量档位，而是一种特殊的预算使用模式。
 
 ## 失败与升级
 
-Subagent 出现问题时，不应立即提升 reasoning。
+Subagent 出现问题时，不应立即提升 reasoning，也不应自行扩大 Skill 读取范围。
 
 ```text
-缺少上下文
-→ 补充最小必要上下文
+缺少规则或上下文
+→ 返回 NEEDS_CONTEXT，由主 Agent 补充最小必要内容
 
 任务边界过大
 → 重新拆分任务
@@ -296,7 +353,7 @@ Subagent 出现问题时，不应立即提升 reasoning。
 → 提升 reasoning
 ```
 
-不要使用更高 reasoning 去补偿缺失的文件、权限、信息或不清晰的任务合同。
+不要使用更高 reasoning 或重新读取整个 Skill 去补偿缺失的文件、权限、信息或不清晰的任务合同。
 
 ## 两种场景
 
@@ -314,13 +371,13 @@ Subagent 出现问题时，不应立即提升 reasoning。
 
 ```text
 理解任务
+→ 主 Agent 读取必要 Skill
 → 判断是否值得委派
 → 拆分为有边界的子任务
-→ 选择场景策略
-→ 选择模型
-→ 选择 reasoning
+→ 提取每个子任务所需约束
+→ 默认设置 Allowed skill reads: NONE
+→ 选择模型和 reasoning
 → 提供最小必要上下文
-→ 明确读写边界
 → 派遣 Subagent
 → 验证结果
 → 主 Agent 集成
