@@ -4,14 +4,7 @@
 
 面向 **ChatGPT / ChatGPT Work / Codex** 的轻量级 Subagent 调度 Skill。
 
-`chatgpt-subagent` 用于帮助高能力主 Agent 将任务拆分并委派给不同模型，同时显式控制：
-
-- 子 Agent 使用的模型
-- 思考等级
-- 上下文范围
-- 读写权限
-- 执行边界
-- 验证方式
+`chatgpt-subagent` 用于帮助高能力主 Agent 将任务拆分并委派给不同模型，同时显式控制模型、思考等级、上下文范围、读写权限、执行边界和验证方式。
 
 它的目标不是尽可能多地创建 Subagent，而是让每一次委派都具有明确边界，并尽量减少不必要的高能力模型调用和上下文消耗。
 
@@ -33,29 +26,66 @@
 
 ## 安装
 
-### 全局安装
+### npm / npx（推荐）
 
-适合希望在多个项目中都可以使用 `subagent` 的用户。
+npm 包首次发布后，可直接通过 `npx` 安装，不需要把它加入项目依赖。
 
-#### ChatGPT / Work
+#### 项目级安装
+
+在目标项目根目录执行：
+
+```bash
+npx chatgpt-subagent install
+```
+
+安装位置：
+
+```text
+<project>/.agents/skills/subagent
+```
+
+#### 全局安装
+
+```bash
+npx chatgpt-subagent install --global
+```
+
+安装位置：
+
+```text
+$HOME/.agents/skills/subagent
+```
+
+其他选项：
+
+```bash
+# 查看安装位置，不写入文件
+npx chatgpt-subagent install --dry-run
+
+# 覆盖已有安装
+npx chatgpt-subagent install --force
+
+# 全局覆盖
+npx chatgpt-subagent install --global --force
+```
+
+CLI 要求 Node.js 18 或更高版本。
+
+> `npx` 只是本项目提供的便捷安装器。Skill 本身仍然安装到 ChatGPT / Codex 使用的 `.agents/skills` 目录。
+
+### ChatGPT / Work 上传
 
 1. 下载本仓库。
 2. 保留 `subagent/` 目录及其全部内容。
 3. 在 ChatGPT 中打开 **Plugins → Skills**。
 4. 选择 **Create → Upload from your computer**。
-5. 上传 `subagent/` Skill；如果文件选择器要求压缩包，可先将 `subagent/` 单独压缩为 ZIP 后上传。
+5. 上传 `subagent/`。如果文件选择器要求压缩包，可先将该目录单独压缩为 ZIP。
 
 安装后，可在 ChatGPT / Work 中通过 `@subagent` 显式调用，也可以在匹配其描述的任务中由系统自动选择。
 
-#### 本地用户级安装（Codex / ChatGPT desktop local workflows）
+### 手动安装
 
-OpenAI 当前的用户级 Skill 目录是：
-
-```text
-$HOME/.agents/skills
-```
-
-安装：
+#### 用户级 / 全局
 
 ```bash
 git clone https://github.com/RhLiu1999/chatgpt-subagent.git
@@ -63,20 +93,15 @@ mkdir -p "$HOME/.agents/skills"
 cp -R chatgpt-subagent/subagent "$HOME/.agents/skills/subagent"
 ```
 
-更新：
+#### 项目级
 
 ```bash
-cd chatgpt-subagent
-git pull
-rm -rf "$HOME/.agents/skills/subagent"
-cp -R subagent "$HOME/.agents/skills/subagent"
+git clone https://github.com/RhLiu1999/chatgpt-subagent.git /tmp/chatgpt-subagent
+mkdir -p .agents/skills
+cp -R /tmp/chatgpt-subagent/subagent .agents/skills/subagent
 ```
 
-### 项目级安装
-
-如果只希望该 Skill 在某一个仓库或项目中可用，推荐使用项目级安装。
-
-将 `subagent/` 放入项目根目录：
+项目目录结构：
 
 ```text
 <project>/
@@ -90,14 +115,6 @@ cp -R subagent "$HOME/.agents/skills/subagent"
                 └── SKILL.md
 ```
 
-Linux / macOS：
-
-```bash
-git clone https://github.com/RhLiu1999/chatgpt-subagent.git /tmp/chatgpt-subagent
-mkdir -p .agents/skills
-cp -R /tmp/chatgpt-subagent/subagent .agents/skills/subagent
-```
-
 PowerShell：
 
 ```powershell
@@ -106,19 +123,22 @@ New-Item -ItemType Directory -Force .agents\skills | Out-Null
 Copy-Item -Recurse $env:TEMP\chatgpt-subagent\subagent .agents\skills\subagent
 ```
 
-Codex 会从当前工作目录向仓库根目录扫描 `.agents/skills`。因此，项目级安装可以把这个调度策略限制在当前项目中，避免对无关项目产生影响。
-
-> 注：ChatGPT Projects 的网页界面目前没有公开文档说明存在独立的“项目专属 Skill 安装槽位”。如果你使用的是本地仓库型 Work/Codex 工作流，使用 `.agents/skills/subagent`；如果希望在 ChatGPT / Work 的多个项目中复用，则使用上面的全局 Skills 安装方式。
-
 ## 目录结构
 
 ```text
-subagent/
-├── SKILL.md
-├── scientific-writing/
-│   └── SKILL.md
-└── code-development/
-    └── SKILL.md
+chatgpt-subagent/
+├── package.json
+├── bin/
+│   └── chatgpt-subagent.js
+├── README.md
+├── README_EN.md
+├── LICENSE
+└── subagent/
+    ├── SKILL.md
+    ├── scientific-writing/
+    │   └── SKILL.md
+    └── code-development/
+        └── SKILL.md
 ```
 
 根 `SKILL.md` 只负责：
@@ -139,8 +159,6 @@ subagent/
 
 Subagent 默认不继承完整项目上下文，也不默认读取完整 Skill。
 
-使用最小充分级别：
-
 ```text
 NONE      仅使用派遣合同
 FRAGMENT  只提供任务相关规则、摘录、接口或结果
@@ -148,13 +166,7 @@ LOCAL     读取一个直接相关的 Skill / reference / 文件 / 局部模块
 FULL      只有任务确实需要项目级判断时才读取广泛上下文
 ```
 
-默认优先：
-
-```text
-NONE / FRAGMENT
-```
-
-`FULL` 必须有具体理由。
+默认优先 `NONE / FRAGMENT`，`FULL` 必须有具体理由。
 
 ### 模型、思考等级和上下文独立
 
@@ -177,7 +189,7 @@ Astra + Low    + FRAGMENT
 
 更强的模型并不意味着需要更大的上下文。
 
-### 每次派遣必须显式设置模型和思考等级
+### 每次派遣显式设置模型和思考等级
 
 每个 Subagent dispatch 都必须明确指定：
 
@@ -290,28 +302,11 @@ Subagent 出现问题时，不应立即提升 reasoning。
 
 ### Scientific Writing
 
-`scientific-writing/` 负责科技写作和科研工作中的 Subagent 调度，例如：
-
-- 科研论文与学术专著
-- LaTeX
-- 科学结果解释
-- 文献整合
-- 图和图注
-- 术语与跨章节一致性
-- Scientific review
+`scientific-writing/` 负责科技写作和科研工作中的 Subagent 调度，例如科研论文、学术专著、LaTeX、科学结果解释、文献整合、图和图注、术语与跨章节一致性以及 scientific review。
 
 ### Code Development
 
-`code-development/` 负责软件开发场景中的 Subagent 调度，例如：
-
-- Repository inspection
-- Implementation
-- Debugging
-- Refactoring
-- Testing
-- Build / lint / type check
-- Diff review
-- Integration verification
+`code-development/` 负责软件开发场景中的 Subagent 调度，例如 repository inspection、implementation、debugging、refactoring、testing、build / lint / type check、diff review 和 integration verification。
 
 混合任务应先拆成两个工作流，再分别加载对应场景 Skill。不要因为总任务同时包含写作和代码，就让所有 Subagent 同时读取两套规则。
 
@@ -329,15 +324,6 @@ Subagent 出现问题时，不应立即提升 reasoning。
 → 派遣 Subagent
 → 验证结果
 → 主 Agent 集成
-```
-
-而不是：
-
-```text
-复制完整上下文
-→ 创建大量 Subagent
-→ 让每个 Agent 重新理解整个项目
-→ 汇总结果
 ```
 
 ## 参考
