@@ -94,6 +94,30 @@ Model strength, reasoning effort, and context size are independent. Never load a
 
 `LOCAL` or `FULL` context does not automatically grant Skill-read permission. `Allowed skill reads` remains separately controlled.
 
+## Root reporting
+
+If one or more subagents were used, the root MUST include a **very short subagent report** in the final response.
+
+Report one line per subagent and include only:
+
+- model
+- reasoning effort
+- context level
+- Skill-read permission
+- access mode when useful (`read-only` or `write:<scope>`)
+- compact result
+
+Recommended format:
+
+```text
+Luna | Low | FRAGMENT | Skills: NONE | read-only | Result: 3 references verified
+Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | Result: edit completed, checks passed
+```
+
+Keep the report terse. Do not include chain-of-thought, hidden reasoning, tool-by-tool logs, reading diaries, or long dispatch prompts.
+
+If no subagent was used, no subagent report is required.
+
 ## Model and reasoning
 
 Choose the cheapest model and lowest reasoning effort that can reliably complete the bounded task.
