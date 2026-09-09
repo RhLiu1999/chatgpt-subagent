@@ -4,14 +4,7 @@
 
 A lightweight Subagent orchestration Skill for **ChatGPT / ChatGPT Work / Codex**.
 
-`chatgpt-subagent` helps capable root agents decompose and delegate bounded tasks across models while explicitly controlling:
-
-- model selection
-- reasoning effort
-- context size
-- read/write permissions
-- execution boundaries
-- verification
+`chatgpt-subagent` helps capable root agents decompose and delegate bounded tasks across models while explicitly controlling model selection, reasoning effort, context size, read/write permissions, execution boundaries, and verification.
 
 The goal is not to maximize the number of Subagents. The goal is to make each delegation bounded, efficient, and auditable while reducing unnecessary use of expensive models and oversized context.
 
@@ -33,29 +26,66 @@ Hard boundaries:
 
 ## Installation
 
-### Global installation
+### npm / npx (recommended)
 
-Use this when you want `subagent` available across multiple projects.
+After the first npm release is published, install directly with `npx` without adding the package to your project dependencies.
 
-#### ChatGPT / Work
+#### Project-level installation
+
+Run from the target project root:
+
+```bash
+npx chatgpt-subagent install
+```
+
+Target:
+
+```text
+<project>/.agents/skills/subagent
+```
+
+#### Global installation
+
+```bash
+npx chatgpt-subagent install --global
+```
+
+Target:
+
+```text
+$HOME/.agents/skills/subagent
+```
+
+Additional options:
+
+```bash
+# Show the destination without writing files
+npx chatgpt-subagent install --dry-run
+
+# Replace an existing installation
+npx chatgpt-subagent install --force
+
+# Replace a global installation
+npx chatgpt-subagent install --global --force
+```
+
+The CLI requires Node.js 18 or later.
+
+> `npx` is only a convenience installer provided by this project. The Skill itself is still installed into the `.agents/skills` directory used by ChatGPT / Codex workflows.
+
+### ChatGPT / Work upload
 
 1. Download this repository.
 2. Keep the `subagent/` directory and all of its contents.
 3. In ChatGPT, open **Plugins → Skills**.
 4. Choose **Create → Upload from your computer**.
-5. Upload the `subagent/` Skill. If your file picker requires an archive, zip the `subagent/` directory by itself first.
+5. Upload `subagent/`. If the file picker requires an archive, zip that directory by itself first.
 
 After installation, you can explicitly invoke it with `@subagent` in ChatGPT / Work, or allow the system to select it automatically when the task matches its description.
 
-#### User-level local installation (Codex / ChatGPT desktop local workflows)
+### Manual installation
 
-OpenAI's current user-level Skill directory is:
-
-```text
-$HOME/.agents/skills
-```
-
-Install:
+#### User-level / global
 
 ```bash
 git clone https://github.com/RhLiu1999/chatgpt-subagent.git
@@ -63,20 +93,15 @@ mkdir -p "$HOME/.agents/skills"
 cp -R chatgpt-subagent/subagent "$HOME/.agents/skills/subagent"
 ```
 
-Update:
+#### Project-level
 
 ```bash
-cd chatgpt-subagent
-git pull
-rm -rf "$HOME/.agents/skills/subagent"
-cp -R subagent "$HOME/.agents/skills/subagent"
+git clone https://github.com/RhLiu1999/chatgpt-subagent.git /tmp/chatgpt-subagent
+mkdir -p .agents/skills
+cp -R /tmp/chatgpt-subagent/subagent .agents/skills/subagent
 ```
 
-### Project-level installation
-
-Use project-level installation when the Skill should be available only inside one repository or project.
-
-Place `subagent/` under the project root:
+Project layout:
 
 ```text
 <project>/
@@ -90,14 +115,6 @@ Place `subagent/` under the project root:
                 └── SKILL.md
 ```
 
-Linux / macOS:
-
-```bash
-git clone https://github.com/RhLiu1999/chatgpt-subagent.git /tmp/chatgpt-subagent
-mkdir -p .agents/skills
-cp -R /tmp/chatgpt-subagent/subagent .agents/skills/subagent
-```
-
 PowerShell:
 
 ```powershell
@@ -106,19 +123,22 @@ New-Item -ItemType Directory -Force .agents\skills | Out-Null
 Copy-Item -Recurse $env:TEMP\chatgpt-subagent\subagent .agents\skills\subagent
 ```
 
-Codex scans `.agents/skills` from the current working directory up to the repository root. Project-level installation therefore keeps this orchestration policy scoped to the repository where it is needed.
-
-> Note: the public ChatGPT Projects documentation currently does not describe a dedicated project-only Skill installation slot in the web UI. For local repository-based Work/Codex workflows, use `.agents/skills/subagent`. To reuse the Skill broadly across ChatGPT / Work projects, use the global Skills installation above.
-
 ## Structure
 
 ```text
-subagent/
-├── SKILL.md
-├── scientific-writing/
-│   └── SKILL.md
-└── code-development/
-    └── SKILL.md
+chatgpt-subagent/
+├── package.json
+├── bin/
+│   └── chatgpt-subagent.js
+├── README.md
+├── README_EN.md
+├── LICENSE
+└── subagent/
+    ├── SKILL.md
+    ├── scientific-writing/
+    │   └── SKILL.md
+    └── code-development/
+        └── SKILL.md
 ```
 
 The root `SKILL.md` is intentionally small. It owns only:
@@ -139,8 +159,6 @@ The two scenario directories define how Subagents should be decomposed for scien
 
 Subagents do not inherit full project context or complete Skills by default.
 
-Use the smallest sufficient context level:
-
 ```text
 NONE      Dispatch contract only
 FRAGMENT  Task-specific rules, excerpts, interfaces, or results
@@ -148,13 +166,7 @@ LOCAL     One directly relevant Skill/reference/file/module or bounded set
 FULL      Broad context only when the assigned decision is genuinely project-wide
 ```
 
-Normal default:
-
-```text
-NONE / FRAGMENT
-```
-
-`FULL` requires a concrete reason.
+The normal default is `NONE / FRAGMENT`. `FULL` requires a concrete reason.
 
 ### Model, reasoning, and context are independent
 
@@ -291,28 +303,11 @@ Do not use additional reasoning to compensate for missing files, permissions, in
 
 ### Scientific Writing
 
-`scientific-writing/` defines Subagent orchestration for:
-
-- research papers and academic monographs
-- LaTeX
-- scientific interpretation
-- literature integration
-- figures and captions
-- terminology and cross-section consistency
-- scientific review
+`scientific-writing/` covers research papers, academic monographs, LaTeX, scientific interpretation, literature integration, figures and captions, terminology consistency, cross-section consistency, and scientific review.
 
 ### Code Development
 
-`code-development/` defines Subagent orchestration for:
-
-- repository inspection
-- implementation
-- debugging
-- refactoring
-- testing
-- build / lint / type checks
-- diff review
-- integration verification
+`code-development/` covers repository inspection, implementation, debugging, refactoring, testing, build / lint / type checks, diff review, and integration verification.
 
 For mixed tasks, split the workstreams first and load the corresponding scenario Skill independently. Do not make every Subagent read both scenario policies merely because the overall task spans both domains.
 
@@ -330,15 +325,6 @@ understand
 → delegate
 → verify
 → integrate
-```
-
-Avoid:
-
-```text
-copy full context
-→ spawn many Subagents
-→ let every agent rediscover the project
-→ merge outputs
 ```
 
 ## References
