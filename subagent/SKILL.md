@@ -1,6 +1,6 @@
 ---
 name: subagent
-description: Minimal subagent orchestration for scientific/technical writing and software development. Use only when the root is Astra, Sol Max, or Sol Ultra.
+description: Minimal subagent orchestration for scientific/technical writing and software development. Use only when the root is GPT-6 Astra, GPT-5.6 Sol Max, or GPT-5.6 Sol Ultra.
 ---
 
 # Subagent
@@ -9,16 +9,69 @@ Keep global context with the root. Delegate only bounded work with the minimum s
 
 ## Eligibility and route
 
-Use this skill only when the root is **Astra**, **Sol Max**, or **Sol Ultra**.
+Use this skill only when the root is **GPT-6 Astra**, **GPT-5.6 Sol Max**, or **GPT-5.6 Sol Ultra**.
 
-- Sol roots MUST NOT delegate to Astra.
-- Astra roots may delegate to Astra, Sol, Terra, or Luna, but Astra subagents are exceptional.
 - scientific/technical writing, research interpretation, papers/books, LaTeX, literature/results → root may load `scientific-writing/SKILL.md`
 - software implementation, debugging, refactoring, testing, build/CI, repository/code review → root may load `code-development/SKILL.md`
 - mixed task → split workstreams first; load each scenario only for its own workstream
 - simple/local/deterministic task → do it directly when delegation adds no value
 
 Do not load both scenario skills unless both are needed.
+
+## Root-class boundary
+
+Treat these as **root-class configurations**:
+
+- GPT-5.6 Sol Max
+- GPT-5.6 Sol Ultra
+- GPT-6 Astra at any reasoning effort
+
+Root-class configurations normally stay at the root and MUST NOT be used as subagents.
+
+The normal subagent pool is:
+
+- Sol, up to `High`
+- Terra, up to `High`
+- Luna, up to `Medium`
+
+Therefore, under ordinary operation:
+
+- a GPT-5.6 Sol Max root may delegate only to Sol / Terra / Luna
+- a GPT-5.6 Sol Ultra root may delegate only to Sol / Terra / Luna
+- a GPT-6 Astra root below `Ultra` may delegate only to Sol / Terra / Luna
+- Sol Max, Sol Ultra, and Astra children are forbidden
+
+### GPT-6 Astra Ultra exception
+
+Only a **GPT-6 Astra root running at Ultra** may delegate a root-class subagent, and only for exceptional, high-value, clearly bounded independent work.
+
+Under this exception the root may explicitly select:
+
+- Astra at a reasoning effort no higher than the Astra root
+- Sol Max
+- Sol Ultra, still subject to the Ultra exception below
+
+Do not use this exception for search, formatting, compilation, test execution, routine editing, repository inspection, or ordinary implementation.
+
+## Same-family reasoning ceiling
+
+A child using the **same model family** as the root MUST NOT use a higher reasoning effort than the root.
+
+A weaker permitted model may use a higher reasoning effort, up to that child model's normal ceiling, as long as the resulting configuration is not root-class.
+
+Examples:
+
+```text
+Astra Low    → Astra Medium     FORBIDDEN
+Astra High   → Astra Ultra      FORBIDDEN
+Astra Low    → Sol High         ALLOWED
+Astra Low    → Sol Max          FORBIDDEN (root-class child)
+Sol Max root → Sol High         ALLOWED
+Sol Max root → Sol Max child    FORBIDDEN (root-class child)
+Astra Ultra  → Sol Max          ALLOWED only as an exceptional root-class delegation
+```
+
+The root must explicitly select both child model and reasoning effort. A worker must never upgrade either by itself.
 
 ## Skill-read policy
 
@@ -43,14 +96,6 @@ If a required rule is missing, the worker must return `NEEDS_CONTEXT` with the m
 Skill access is explicit opt-in. It is not inherited merely because the task relates to a Skill.
 
 The root may authorize a Skill read only when distilled constraints are insufficient for the bounded task. The dispatch must name the exact Skill and briefly state why it is needed.
-
-Example:
-
-```text
-Allowed skill reads:
-- .agents/skills/latex/SKILL.md
-Reason: worker owns the complete project-specific LaTeX validation workflow.
-```
 
 Otherwise keep `Allowed skill reads: NONE`.
 
@@ -120,26 +165,26 @@ If no subagent was used, no subagent report is required.
 
 ## Model and reasoning
 
-Choose the cheapest model and lowest reasoning effort that can reliably complete the bounded task.
+Choose the cheapest model and lowest reasoning effort that can reliably complete the bounded task while respecting the root-class boundary.
 
 - **Luna** — `Low` default, `Medium` if modest synthesis is needed; `High/Max/Ultra` forbidden. Use for search, inspection, execution, compile/test/lint/grep/diff and deterministic checks.
 - **Terra** — `Low` for simple execution, `Medium` for normal implementation/editing, `High` for difficult bounded work; `Max/Ultra` forbidden. If Terra High is insufficient, prefer Sol.
-- **Sol** — `Medium` default for substantive reasoning, `High` for difficult reasoning/debug/review, `Max` only for exceptional quality-critical bounded work; `Ultra` forbidden in normal operation. Sol children do not inherit a Sol Max/Ultra root setting by default.
-- **Astra** — only under an Astra root, and only for genuinely independent high-impact reasoning. Start at the lowest sufficient effort. Never use Astra for search, formatting, compilation, test execution, routine editing, or repository inspection.
+- **Sol** — `Medium` default for substantive reasoning, `High` for difficult reasoning/debug/review. `Max/Ultra` are root-class configurations and forbidden as children except under the GPT-6 Astra Ultra exception.
+- **Astra** — root-class and forbidden as a child except under the GPT-6 Astra Ultra exception.
 
 ## Ultra exception
 
 Ultra is outside the normal escalation ladder.
 
-A subagent may use `Ultra` only when ALL are true:
+A child may use `Ultra` only when ALL are true:
 
-1. the root itself is Ultra
+1. the root is GPT-6 Astra Ultra
 2. the user is intentionally spending otherwise-expiring/resetting high-compute budget, such as shortly before a TIBO reset
 3. spending that budget now is preferable to conserving it
 4. the delegated task is substantial enough to justify Ultra
 5. the root explicitly selects Ultra for that dispatch
 
-Otherwise Ultra is forbidden. A subagent must never upgrade itself to Ultra. Difficulty alone, a single Max failure, or possible quality gain is not sufficient justification.
+Otherwise child Ultra is forbidden. A child must never upgrade itself to Ultra. Difficulty alone, a single failure, or possible marginal quality gain is not sufficient justification.
 
 ## Escalation
 
@@ -147,8 +192,9 @@ When a worker struggles, diagnose before spending more compute:
 
 1. missing rule/context → return `NEEDS_CONTEXT`; root supplies only the missing material
 2. task too broad → split or narrow it
-3. model mismatch → upgrade the model
-4. reasoning depth genuinely insufficient → raise reasoning effort
+3. model mismatch → upgrade within the permitted child pool
+4. reasoning depth genuinely insufficient → raise reasoning effort without crossing the applicable ceiling
+5. root-class escalation → only through the GPT-6 Astra Ultra exception
 
 Do not let a worker compensate for missing context by browsing Skills or broad project instructions. Do not use higher reasoning to compensate for missing files, information, permissions, or an unclear contract.
 
