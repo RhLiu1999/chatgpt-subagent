@@ -4,13 +4,13 @@
 
 A lightweight Subagent orchestration Skill for **ChatGPT / ChatGPT Work / Codex**.
 
-`chatgpt-subagent` helps capable root agents decompose and delegate bounded tasks across models while explicitly controlling model selection, reasoning effort, context size, read/write permissions, Skill-read permissions, execution boundaries, and verification.
+`chatgpt-subagent` helps capable root agents decompose complex work into bounded child tasks while explicitly controlling model choice, reasoning effort, context, read/write permissions, Skill-read permissions, and verification.
 
-The goal is not to maximize the number of Subagents. The goal is to make each delegation bounded, efficient, and auditable while reducing unnecessary use of expensive models, oversized context, and repeated Skill reads.
+The goal is not to maximize the number of Subagents. The goal is to **delegate sparingly and precisely, keep global understanding at the root, and give each child only the minimum necessary context.**
 
 ## Scope
 
-This Skill is intended only for high-capability root agents:
+This Skill is intended only for these root-class agents:
 
 - GPT-6 Astra
 - GPT-5.6 Sol Max
@@ -18,21 +18,79 @@ This Skill is intended only for high-capability root agents:
 
 Other root agents should not enable this orchestration workflow by default.
 
-Hard boundaries:
+## Root-class boundary
 
-- Sol Max / Sol Ultra may delegate only to Sol, Terra, and Luna.
-- **A Sol root must never delegate to Astra.**
-- An Astra root may delegate to Astra, Sol, Terra, or Luna, but Astra Subagents should remain exceptional.
+Treat the following as **root-class configurations**:
+
+- GPT-5.6 Sol Max
+- GPT-5.6 Sol Ultra
+- GPT-6 Astra at any reasoning effort
+
+Root-class configurations normally remain at the root and **must not be used as ordinary subagents**.
+
+The normal subagent pool is:
+
+```text
+Sol   ≤ High
+Terra ≤ High
+Luna  ≤ Medium
+```
+
+Therefore, under ordinary operation:
+
+```text
+Sol Max root   → Sol / Terra / Luna
+Sol Ultra root → Sol / Terra / Luna
+Astra < Ultra  → Sol / Terra / Luna
+```
+
+The following are forbidden by default:
+
+```text
+Sol Max child
+Sol Ultra child
+Astra child
+```
+
+### Sole exception: GPT-6 Astra Ultra
+
+Only a **GPT-6 Astra root running at Ultra** may exceptionally delegate a root-class child, and only for rare, high-value, clearly bounded, independent work.
+
+Under this exception the root may explicitly use:
+
+- Astra at a reasoning effort no higher than the root
+- Sol Max
+- Sol Ultra, still subject to the Ultra policy below
+
+Do not use this exception for search, formatting, compilation, test execution, routine edits, repository inspection, or ordinary implementation.
+
+## Same-family reasoning ceiling
+
+A child in the **same model family** must not use a higher reasoning effort than the root:
+
+```text
+child reasoning ≤ root reasoning
+```
+
+A weaker permitted model may use a higher reasoning effort, up to that model's normal child ceiling, as long as the resulting configuration is not root-class.
+
+Examples:
+
+```text
+Astra Low    → Astra Medium   ❌
+Astra High   → Astra Ultra    ❌
+Astra Low    → Sol High       ✅
+Astra Low    → Sol Max        ❌ root-class child
+Sol Max root → Sol High       ✅
+Sol Max root → Sol Max child  ❌ root-class child
+Astra Ultra  → Sol Max        ✅ exceptional root-class delegation only
+```
 
 ## Installation
 
 ### npm / npx (recommended)
 
-Install directly with `npx` without adding the package to your project dependencies.
-
-#### Project-level installation
-
-Run from the target project root:
+Project-level:
 
 ```bash
 npx chatgpt-subagent install
@@ -44,7 +102,7 @@ Target:
 <project>/.agents/skills/subagent
 ```
 
-#### Global installation
+Global:
 
 ```bash
 npx chatgpt-subagent install --global
@@ -59,19 +117,12 @@ $HOME/.agents/skills/subagent
 Additional options:
 
 ```bash
-# Show the destination without writing files
 npx chatgpt-subagent install --dry-run
-
-# Replace an existing installation
 npx chatgpt-subagent install --force
-
-# Replace a global installation
 npx chatgpt-subagent install --global --force
 ```
 
 The CLI requires Node.js 18 or later.
-
-> `npx` is only a convenience installer provided by this project. The Skill itself is still installed into the `.agents/skills` directory used by ChatGPT / Codex workflows.
 
 ### ChatGPT / Work upload
 
@@ -79,13 +130,11 @@ The CLI requires Node.js 18 or later.
 2. Keep the `subagent/` directory and all of its contents.
 3. In ChatGPT, open **Plugins → Skills**.
 4. Choose **Create → Upload from your computer**.
-5. Upload `subagent/`. If the file picker requires an archive, zip that directory by itself first.
-
-After installation, you can explicitly invoke it with `@subagent` in ChatGPT / Work, or allow the system to select it automatically when the task matches its description.
+5. Upload `subagent/`. If an archive is required, zip that directory by itself first.
 
 ### Manual installation
 
-#### User-level / global
+Global:
 
 ```bash
 git clone https://github.com/RhLiu1999/chatgpt-subagent.git
@@ -93,34 +142,12 @@ mkdir -p "$HOME/.agents/skills"
 cp -R chatgpt-subagent/subagent "$HOME/.agents/skills/subagent"
 ```
 
-#### Project-level
+Project-level:
 
 ```bash
 git clone https://github.com/RhLiu1999/chatgpt-subagent.git /tmp/chatgpt-subagent
 mkdir -p .agents/skills
 cp -R /tmp/chatgpt-subagent/subagent .agents/skills/subagent
-```
-
-Project layout:
-
-```text
-<project>/
-└── .agents/
-    └── skills/
-        └── subagent/
-            ├── SKILL.md
-            ├── scientific-writing/
-            │   └── SKILL.md
-            └── code-development/
-                └── SKILL.md
-```
-
-PowerShell:
-
-```powershell
-git clone https://github.com/RhLiu1999/chatgpt-subagent.git $env:TEMP\chatgpt-subagent
-New-Item -ItemType Directory -Force .agents\skills | Out-Null
-Copy-Item -Recurse $env:TEMP\chatgpt-subagent\subagent .agents\skills\subagent
 ```
 
 ## Structure
@@ -141,117 +168,52 @@ chatgpt-subagent/
         └── SKILL.md
 ```
 
-The root `SKILL.md` owns only:
+The root `SKILL.md` owns general orchestration boundaries. The two scenario Skills only define decomposition patterns for scientific writing and code development.
 
-- whether delegation is appropriate
-- scenario routing
-- model boundaries
-- reasoning-effort rules
-- minimum-context rules
-- Skill-read permissions
-- subagent usage reporting
-- read/write and external-action boundaries
-- escalation after failure
+## Minimum necessary context
 
-The two scenario directories define how Subagents should be decomposed for scientific writing and code development.
-
-## Core principles
-
-### Minimum necessary context
-
-Subagents do not inherit full project context or complete Skills by default.
+Subagents do not inherit full project context by default.
 
 ```text
 NONE      Dispatch contract only
 FRAGMENT  Task-specific rules, excerpts, interfaces, or results
-LOCAL     One directly relevant reference/file/module, or an explicitly authorized Skill
+LOCAL     One directly relevant file/module/reference, or an explicitly authorized Skill
 FULL      Broad context only when the assigned decision is genuinely project-wide
 ```
 
-The normal default is `NONE / FRAGMENT`. `FULL` requires a concrete reason.
+Prefer `NONE / FRAGMENT`. `FULL` requires a concrete reason.
 
-### Subagents do not re-read Skills by default
+Model strength, reasoning effort, and context size are independent decisions.
 
-The root agent reads, interprets, and resolves relevant Skills. It then passes only the constraints needed for the bounded child task.
+## Subagents do not re-read Skills by default
 
-Default dispatch policy:
+The root reads and resolves project Skills, scenario Skills, `AGENTS.md`, and similar workflow instructions, then passes only the rules needed for the current bounded child task under:
+
+```text
+Inherited constraints
+```
+
+Default:
 
 ```text
 Allowed skill reads: NONE
 ```
 
-If the root has already read a project Skill, scenario Skill, `AGENTS.md`, or another workflow instruction source:
+A child must not independently reopen `SKILL.md`, project Skills, scenario Skills, `AGENTS.md`, or other workflow instructions.
 
-```text
-Root reads Skill
-→ extracts only task-relevant constraints
-→ places them under Inherited constraints
-→ child executes directly
-```
-
-Not:
-
-```text
-Root reads Skill
-→ dispatches task
-→ child reads the same Skill again
-```
-
-A child must not open `SKILL.md`, project Skills, scenario Skills, `AGENTS.md`, or other workflow instructions unless the root explicitly lists the exact file under `Allowed skill reads`.
-
-If a required rule is missing, the child should return:
+If a necessary rule is missing, return:
 
 ```text
 NEEDS_CONTEXT
 ```
 
-and identify the missing item. The root then supplies the smallest necessary addition instead of allowing the child to broaden its own Skill reads.
+The root then supplies the smallest necessary addition.
 
-Skill-read permission and context level are independent controls. `LOCAL` or `FULL` context does not automatically grant permission to read Skills.
+A child may read a Skill only when the root explicitly lists the exact Skill under `Allowed skill reads` and explains why it is required.
 
-The root should authorize a Skill read only when distilled constraints are insufficient for the bounded task, for example:
+## Dispatch contract
 
-```text
-Allowed skill reads:
-- .agents/skills/latex/SKILL.md
-Reason: worker owns the complete project-specific LaTeX validation workflow.
-```
-
-### Model, reasoning, and context are independent
-
-Treat these as three separate decisions:
-
-```text
-Model
-Reasoning
-Context
-```
-
-For example:
-
-```text
-Luna  + Low    + NONE
-Terra + Medium + FRAGMENT
-Sol   + High   + LOCAL
-Astra + Low    + FRAGMENT
-```
-
-A stronger model does not automatically require more context.
-
-### Explicit model and reasoning selection
-
-Every Subagent dispatch must explicitly specify:
-
-```text
-model
-reasoning effort
-```
-
-Do not rely on implicit inheritance from the root agent. A Subagent must not upgrade its own model or reasoning effort.
-
-### Subagents are bounded workers
-
-Every delegated task should explicitly define at least:
+Every Subagent dispatch should explicitly define at least:
 
 ```text
 Objective
@@ -267,145 +229,121 @@ Expected output
 Verification criterion
 ```
 
-Recommended default:
+A child must not independently increase model strength, reasoning effort, permissions, or scope.
 
-```text
-Allowed skill reads: NONE
-Inherited constraints: only task-relevant rules already resolved by the root
-```
-
-The root agent remains responsible for global understanding, Skill interpretation, decomposition, dependency ordering, model/context selection, final verification, and integration.
-
-### Root must report subagent usage concisely
-
-Whenever one or more subagents are used, the root's final response must include a **very short subagent report**. Use one line per subagent and include only:
-
-- model
-- reasoning effort
-- context level
-- Skill-read permission
-- access mode when useful (`read-only` or `write:<scope>`)
-- compact result
-
-Recommended format:
-
-```text
-Luna | Low | FRAGMENT | Skills: NONE | read-only | Result: 3 references verified
-Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | Result: edit completed, checks passed
-```
-
-Do not include chain-of-thought, hidden reasoning, tool-by-tool logs, reading diaries, or long dispatch prompts in this report.
-
-If no subagent was used, no report is required.
-
-## Reasoning levels
+## Models and reasoning
 
 ### Luna
 
-Use for search, grep, file discovery, compilation, test execution, linting, diff/status inspection, and other deterministic work.
+Search, grep, file discovery, compilation, tests, lint, diff/status inspection, and deterministic checks.
 
 ```text
 Default: Low
 Maximum: Medium
 ```
 
-If Luna Medium is insufficient, prefer a stronger model.
-
 ### Terra
 
-Use for bounded implementation, routine local edits, ordinary tests, small refactors, and structured transformations.
+Bounded implementation, routine local edits, ordinary tests, small refactors, and structured transformations.
 
 ```text
 Default: Low / Medium
 Maximum: High
 ```
 
-If Terra High is insufficient, prefer Sol.
-
 ### Sol
 
-Use for scientific reasoning, substantive technical writing, complex implementation, debugging, multi-file changes, integration review, and architecture-sensitive work.
+Scientific reasoning, substantive technical writing, difficult debugging, multi-file edits, and integration review.
 
 ```text
 Default: Medium
-Complex work: High
-Exceptional bounded work: Max
+Complex: High
+Maximum as child: High
 ```
 
-A Sol Max / Ultra root does not imply Max / Ultra Sol Subagents.
+Sol Max / Ultra are root-class configurations, not normal child settings.
 
 ### Astra
 
-Astra Subagents may only be created by an Astra root. They are reserved for rare, independent, high-value reasoning tasks where using Sol would materially increase correctness risk.
+Astra is root-class and forbidden as a normal child. Only GPT-6 Astra Ultra may use it under the exception above.
 
 ## Ultra policy
 
-Ultra is **not part of the normal escalation ladder**.
+Ultra is outside the normal escalation ladder.
 
-A Subagent may use Ultra only when all of the following are true:
+A child may use Ultra only when all of the following are true:
 
-1. the root agent itself is running at Ultra
-2. high-compute quota is about to expire or TIBO is about to reset
-3. spending the remaining budget now is preferable to conserving it
-4. the delegated task is important enough to benefit from Ultra
-5. the root explicitly selects Ultra for that dispatch
+1. the root is GPT-6 Astra Ultra
+2. the user is intentionally spending otherwise-expiring/resetting high-compute budget, such as shortly before a TIBO reset
+3. spending that budget now is preferable to conserving it
+4. the child task is important and clearly bounded
+5. the root explicitly selects Ultra
 
-Otherwise:
-
-```text
-Subagent Ultra = forbidden
-```
-
-Ultra is a special budget-use mode, not a normal quality tier.
+Otherwise child Ultra is forbidden.
 
 ## Failure and escalation
 
-Do not immediately increase reasoning effort when a Subagent struggles, and do not allow it to broaden Skill reads on its own.
+Do not immediately increase reasoning effort after failure:
 
 ```text
-Missing rule or context
-→ return NEEDS_CONTEXT; root supplies only the missing material
+Missing rule/context
+→ NEEDS_CONTEXT; root supplies only the missing material
 
-Task scope too broad
-→ narrow or restructure the task
+Task too broad
+→ split or narrow it
 
 Model capability mismatch
-→ use a stronger model
+→ upgrade within the permitted child pool
 
-Context is sufficient and the model is appropriate,
-but reasoning depth is insufficient
-→ increase reasoning effort
+Reasoning depth insufficient
+→ raise reasoning without crossing the applicable ceiling
+
+Root-class child needed
+→ available only through the GPT-6 Astra Ultra exception
 ```
 
-Do not use additional reasoning or repeated full-Skill reads to compensate for missing files, permissions, information, or an unclear task contract.
+## Root must report Subagent usage concisely
+
+Whenever Subagents are used, the final response must report one line per child with only model, reasoning effort, context level, Skill-read permission, useful access mode, and a compact result.
+
+Recommended format:
+
+```text
+Luna | Low | FRAGMENT | Skills: NONE | read-only | Result: checks passed
+Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | Result: edit completed
+```
+
+Do not include chain-of-thought, tool-by-tool logs, reading diaries, or long dispatch prompts.
+
+If no Subagent was used, no report is required.
 
 ## Scenario policies
 
 ### Scientific Writing
 
-`scientific-writing/` covers research papers, academic monographs, LaTeX, scientific interpretation, literature integration, figures and captions, terminology consistency, cross-section consistency, and scientific review.
+`scientific-writing/` covers Subagent orchestration for research papers, academic monographs, LaTeX, scientific interpretation, literature integration, figures/captions, and cross-section consistency.
 
 ### Code Development
 
-`code-development/` covers repository inspection, implementation, debugging, refactoring, testing, build / lint / type checks, diff review, and integration verification.
+`code-development/` covers repository inspection, implementation, debugging, refactoring, testing, build/lint/type checks, diff review, and integration verification.
 
-For mixed tasks, split the workstreams first and load the corresponding scenario Skill independently. Do not make every Subagent read both scenario policies merely because the overall task spans both domains.
+Split mixed tasks into separate workstreams rather than making every Subagent read both scenario policies.
 
 ## Recommended workflow
 
 ```text
 understand
 → root reads required Skills
-→ decide whether delegation is useful
+→ decide whether delegation adds value
 → decompose into bounded tasks
 → extract task-specific constraints
 → default Allowed skill reads to NONE
-→ select model and reasoning effort
+→ select permitted child model + reasoning
 → provide minimum necessary context
 → delegate
 → verify
 → integrate
-→ report subagent configuration and result concisely
+→ report Subagent configuration and result concisely
 ```
 
 ## References
