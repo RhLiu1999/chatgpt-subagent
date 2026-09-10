@@ -4,53 +4,111 @@
 
 面向 **ChatGPT / ChatGPT Work / Codex** 的轻量级 Subagent 调度 Skill。
 
-`chatgpt-subagent` 用于帮助高能力主 Agent 将任务拆分并委派给不同模型，同时显式控制模型、思考等级、上下文范围、读写权限、Skill 读取权限、执行边界和验证方式。
+`chatgpt-subagent` 用于帮助高能力主 Agent 将复杂任务拆成有边界的子任务，并显式控制模型、思考等级、上下文、读写权限、Skill 读取权限和验证方式。
 
-它的目标不是尽可能多地创建 Subagent，而是让每一次委派都具有明确边界，并尽量减少不必要的高能力模型调用、上下文消耗和重复 Skill 读取。
+目标不是创建尽可能多的 Subagent，而是做到：**少而准地委派，主 Agent 保留全局理解，子 Agent 只拿最小必要上下文。**
 
 ## 适用范围
 
-本 Skill 仅面向以下高能力主 Agent：
+本 Skill 只面向以下 root-class 主 Agent：
 
 - GPT-6 Astra
 - GPT-5.6 Sol Max
 - GPT-5.6 Sol Ultra
 
-其他主 Agent 不应默认启用这套多代理调度流程。
+其他主 Agent 不应默认启用这套调度流程。
 
-硬性边界：
+## Root-class 边界
 
-- Sol Max / Sol Ultra 只能委派给 Sol、Terra、Luna。
-- **Sol 主 Agent 禁止调用 Astra。**
-- Astra 主 Agent 可以委派给 Astra、Sol、Terra、Luna，但 Astra Subagent 应保持例外使用。
+以下配置视为 **root-class**：
+
+- GPT-5.6 Sol Max
+- GPT-5.6 Sol Ultra
+- GPT-6 Astra 的任意 reasoning effort
+
+它们通常只作为主 Agent，**默认禁止作为子 Agent**。
+
+正常 Subagent 池只有：
+
+```text
+Sol   ≤ High
+Terra ≤ High
+Luna  ≤ Medium
+```
+
+因此正常情况下：
+
+```text
+Sol Max root   → Sol / Terra / Luna
+Sol Ultra root → Sol / Terra / Luna
+Astra < Ultra  → Sol / Terra / Luna
+```
+
+以下均默认禁止：
+
+```text
+Sol Max child
+Sol Ultra child
+Astra child
+```
+
+### 唯一例外：GPT-6 Astra Ultra
+
+只有 **GPT-6 Astra Ultra root** 才允许例外调用 root-class 子 Agent，而且必须是少数高价值、彼此独立、边界清楚的核心任务。
+
+此时可以显式使用：
+
+- Astra，reasoning 不得高于 root
+- Sol Max
+- Sol Ultra，但仍受 Ultra 特殊规则约束
+
+不要把这个例外用于搜索、格式调整、编译、测试执行、普通修改、仓库检查或常规实现。
+
+## 同模型 reasoning 上限
+
+同一模型族不能通过 Subagent 偷偷提高 reasoning：
+
+```text
+child reasoning ≤ root reasoning
+```
+
+但如果降级到更弱、且允许的模型，可以给它更高 reasoning，只要不进入 root-class 配置。
+
+例如：
+
+```text
+Astra Low    → Astra Medium   ❌
+Astra High   → Astra Ultra    ❌
+Astra Low    → Sol High       ✅
+Astra Low    → Sol Max        ❌ root-class child
+Sol Max root → Sol High       ✅
+Sol Max root → Sol Max child  ❌ root-class child
+Astra Ultra  → Sol Max        ✅ 仅限例外重型委派
+```
 
 ## 安装
 
 ### npm / npx（推荐）
 
-可直接通过 `npx` 安装，不需要把它加入项目依赖。
-
-#### 项目级安装
-
-在目标项目根目录执行：
+项目级：
 
 ```bash
 npx chatgpt-subagent install
 ```
 
-安装位置：
+安装到：
 
 ```text
 <project>/.agents/skills/subagent
 ```
 
-#### 全局安装
+全局：
 
 ```bash
 npx chatgpt-subagent install --global
 ```
 
-安装位置：
+安装到：
 
 ```text
 $HOME/.agents/skills/subagent
@@ -59,33 +117,24 @@ $HOME/.agents/skills/subagent
 其他选项：
 
 ```bash
-# 查看安装位置，不写入文件
 npx chatgpt-subagent install --dry-run
-
-# 覆盖已有安装
 npx chatgpt-subagent install --force
-
-# 全局覆盖
 npx chatgpt-subagent install --global --force
 ```
 
 CLI 要求 Node.js 18 或更高版本。
 
-> `npx` 只是本项目提供的便捷安装器。Skill 本身仍然安装到 ChatGPT / Codex 使用的 `.agents/skills` 目录。
-
 ### ChatGPT / Work 上传
 
 1. 下载本仓库。
-2. 保留 `subagent/` 目录及其全部内容。
+2. 保留 `subagent/` 及其全部内容。
 3. 在 ChatGPT 中打开 **Plugins → Skills**。
 4. 选择 **Create → Upload from your computer**。
-5. 上传 `subagent/`。如果文件选择器要求压缩包，可先将该目录单独压缩为 ZIP。
-
-安装后，可在 ChatGPT / Work 中通过 `@subagent` 显式调用，也可以在匹配其描述的任务中由系统自动选择。
+5. 上传 `subagent/`。如果需要压缩包，可单独将该目录压缩为 ZIP。
 
 ### 手动安装
 
-#### 用户级 / 全局
+全局：
 
 ```bash
 git clone https://github.com/RhLiu1999/chatgpt-subagent.git
@@ -93,34 +142,12 @@ mkdir -p "$HOME/.agents/skills"
 cp -R chatgpt-subagent/subagent "$HOME/.agents/skills/subagent"
 ```
 
-#### 项目级
+项目级：
 
 ```bash
 git clone https://github.com/RhLiu1999/chatgpt-subagent.git /tmp/chatgpt-subagent
 mkdir -p .agents/skills
 cp -R /tmp/chatgpt-subagent/subagent .agents/skills/subagent
-```
-
-项目目录结构：
-
-```text
-<project>/
-└── .agents/
-    └── skills/
-        └── subagent/
-            ├── SKILL.md
-            ├── scientific-writing/
-            │   └── SKILL.md
-            └── code-development/
-                └── SKILL.md
-```
-
-PowerShell：
-
-```powershell
-git clone https://github.com/RhLiu1999/chatgpt-subagent.git $env:TEMP\chatgpt-subagent
-New-Item -ItemType Directory -Force .agents\skills | Out-Null
-Copy-Item -Recurse $env:TEMP\chatgpt-subagent\subagent .agents\skills\subagent
 ```
 
 ## 目录结构
@@ -141,117 +168,52 @@ chatgpt-subagent/
         └── SKILL.md
 ```
 
-根 `SKILL.md` 只负责：
+根 `SKILL.md` 负责通用调度边界。两个场景 Skill 只定义科技写作和代码开发中的拆分方式。
 
-- 是否适合委派
-- 场景路由
-- 模型边界
-- 思考等级规则
-- 最小上下文规则
-- Skill 读取权限
-- 子 Agent 调用报告
-- 读写与外部操作边界
-- 失败后的升级策略
+## 最小必要上下文
 
-两个子目录分别定义科技写作和代码开发场景中的 Subagent 拆分方式。
-
-## 核心原则
-
-### 最小必要上下文
-
-Subagent 默认不继承完整项目上下文，也不默认读取完整 Skill。
+Subagent 默认不继承完整项目上下文。
 
 ```text
 NONE      仅使用派遣合同
-FRAGMENT  只提供任务相关规则、摘录、接口或结果
-LOCAL     读取一个直接相关的 reference / 文件 / 局部模块，或显式授权的 Skill
-FULL      只有任务确实需要项目级判断时才读取广泛上下文
+FRAGMENT  任务相关规则、摘录、接口或结果
+LOCAL     一个直接相关的文件/模块/reference，或显式授权的 Skill
+FULL      只有任务确实需要项目级判断时才提供广泛上下文
 ```
 
-默认优先 `NONE / FRAGMENT`，`FULL` 必须有具体理由。
+默认优先 `NONE / FRAGMENT`。`FULL` 必须有具体理由。
 
-### 子 Agent 默认禁止重复读取 Skill
+模型强度、reasoning effort 和 context size 是三个独立决策。
 
-主 Agent 负责读取、理解并解析相关 Skill，然后只把当前子任务需要的规则传给子 Agent。
+## 子 Agent 默认禁止重复读取 Skill
 
-默认派遣策略：
+主 Agent 负责读取和解析项目 Skill、场景 Skill、`AGENTS.md` 等，然后只把当前子任务需要的规则放进：
+
+```text
+Inherited constraints
+```
+
+默认：
 
 ```text
 Allowed skill reads: NONE
 ```
 
-如果主 Agent 已经读取了项目 Skill、场景 Skill、`AGENTS.md` 或其他工作流说明：
+子 Agent 不得自行重新打开 `SKILL.md`、项目 Skill、场景 Skill、`AGENTS.md` 或其他工作流说明。
 
-```text
-主 Agent 读取 Skill
-→ 提取当前子任务真正需要的约束
-→ 写入 Inherited constraints
-→ 子 Agent 直接执行
-```
-
-而不是：
-
-```text
-主 Agent 读取 Skill
-→ 派发任务
-→ 子 Agent 再次读取同一份 Skill
-```
-
-子 Agent 不得自行打开 `SKILL.md`、项目 Skill、场景 Skill、`AGENTS.md` 或其他工作流说明。只有主 Agent 在 `Allowed skill reads` 中显式列出具体文件时才允许读取。
-
-如果发现缺少必要规则，子 Agent 应返回：
+如果缺少必要规则，应返回：
 
 ```text
 NEEDS_CONTEXT
 ```
 
-并说明缺少什么，由主 Agent 补充最小必要内容，而不是自行扩大读取范围。
+由主 Agent 补充最小必要内容。
 
-Skill 读取权限与上下文等级是两个独立控制项。即使上下文等级是 `LOCAL` 或 `FULL`，也不会自动获得 Skill 读取权限。
+只有主 Agent 在 `Allowed skill reads` 中显式列出具体 Skill 并说明原因时，子 Agent 才允许读取。
 
-只有当压缩后的约束确实不足以完成封闭任务时，主 Agent 才应显式授权某个具体 Skill，例如：
+## 派遣合同
 
-```text
-Allowed skill reads:
-- .agents/skills/latex/SKILL.md
-Reason: worker owns the complete project-specific LaTeX validation workflow.
-```
-
-### 模型、思考等级和上下文独立
-
-三者应分别决定：
-
-```text
-Model
-Reasoning
-Context
-```
-
-例如：
-
-```text
-Luna  + Low    + NONE
-Terra + Medium + FRAGMENT
-Sol   + High   + LOCAL
-Astra + Low    + FRAGMENT
-```
-
-更强的模型并不意味着需要更大的上下文。
-
-### 每次派遣显式设置模型和思考等级
-
-每个 Subagent dispatch 都必须明确指定：
-
-```text
-model
-reasoning effort
-```
-
-不要依赖主 Agent 设置的隐式继承。Subagent 也不能自行提升自己的模型或思考等级。
-
-### Subagent 是有边界的 Worker
-
-每个委派任务应至少明确：
+每个 Subagent dispatch 至少明确：
 
 ```text
 Objective
@@ -267,144 +229,121 @@ Expected output
 Verification criterion
 ```
 
-推荐默认值：
+子 Agent 不能自行提升模型、reasoning、权限或任务范围。
 
-```text
-Allowed skill reads: NONE
-Inherited constraints: 仅包含主 Agent 已解析出的当前任务相关规则
-```
-
-主 Agent 负责全局理解、Skill 解释、拆分、依赖排序、模型选择、上下文选择、最终验证和集成。
-
-### 主 Agent 必须简洁报告子 Agent 调用
-
-只要本轮使用了一个或多个子 Agent，主 Agent 的最终回复必须附带一个**非常简短**的调用报告。每个子 Agent 一行，只报告：
-
-- 模型
-- reasoning effort
-- context level
-- Skill 读取权限
-- 必要时标记 `read-only` 或写入范围
-- 极简结果
-
-推荐格式：
-
-```text
-Luna | Low | FRAGMENT | Skills: NONE | read-only | 结果：3 处引用已核对
-Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | 结果：修改完成，检查通过
-```
-
-不要在这个报告里输出思维链、隐藏推理、逐工具日志、阅读流水账或长篇 dispatch prompt。
-
-如果本轮没有调用子 Agent，则不需要额外报告。
-
-## 思考等级
+## 模型与 reasoning
 
 ### Luna
 
-适合搜索、grep、文件定位、编译、测试执行、lint、diff/status 检查和其他确定性任务。
+搜索、grep、文件定位、编译、测试、lint、diff/status 和确定性检查。
 
 ```text
 默认：Low
 最高：Medium
 ```
 
-Luna Medium 不足时，应优先升级模型。
-
 ### Terra
 
-适合边界明确的实现、普通局部修改、常规测试、小型重构和结构化转换。
+边界明确的实现、普通局部修改、常规测试、小型重构和结构化转换。
 
 ```text
 默认：Low / Medium
 最高：High
 ```
 
-Terra High 不足时，应优先使用 Sol。
-
 ### Sol
 
-适合科学推理、实质性科技写作、复杂实现、调试、跨文件修改、集成审计和架构相关工作。
+科学推理、实质性科技写作、复杂调试、多文件修改和集成审计。
 
 ```text
 默认：Medium
-复杂任务：High
-极少数关键封闭任务：Max
+复杂：High
+子 Agent 最高：High
 ```
 
-Sol Max / Ultra 主 Agent 不意味着其 Sol Subagent 自动使用 Max / Ultra。
+Sol Max / Ultra 属于 root-class，不是普通子 Agent 配置。
 
 ### Astra
 
-Astra Subagent 仅允许由 Astra 主 Agent 创建，只应用于少数彼此独立、价值较高，并且使用 Sol 会明显增加正确性风险的核心推理任务。
+Astra 属于 root-class，默认禁止作为子 Agent。只有 GPT-6 Astra Ultra root 可以按上面的例外规则调用。
 
 ## Ultra 规则
 
-Ultra **不属于正常升级链**。
+Ultra 不属于正常升级链。
 
-Subagent 只有在以下条件同时满足时才允许使用 Ultra：
+子 Agent 使用 Ultra 只有在以下条件全部满足时才允许：
 
-1. 主 Agent 本身正在使用 Ultra。
-2. 当前高计算额度即将过期或 TIBO 即将重置。
-3. 此时主动消耗剩余额度比保留额度更合理。
-4. 当前任务足够重要，确实值得使用 Ultra。
-5. 主 Agent 在本次派遣中显式指定 Ultra。
+1. root 是 GPT-6 Astra Ultra
+2. 用户确实希望消耗即将过期或重置的高计算额度，例如 TIBO 即将重置
+3. 当前主动消耗额度比保留更合理
+4. 子任务足够重要并且边界清楚
+5. root 显式指定 Ultra
 
-否则：
-
-```text
-Subagent Ultra = 禁止
-```
-
-Ultra 不是普通质量档位，而是一种特殊的预算使用模式。
+否则 child Ultra 禁止。
 
 ## 失败与升级
 
-Subagent 出现问题时，不应立即提升 reasoning，也不应自行扩大 Skill 读取范围。
+不要一失败就加 reasoning：
 
 ```text
-缺少规则或上下文
-→ 返回 NEEDS_CONTEXT，由主 Agent 补充最小必要内容
+缺少规则/上下文
+→ NEEDS_CONTEXT，由 root 补最小内容
 
-任务边界过大
-→ 重新拆分任务
+任务太大
+→ 重新拆分
 
 模型能力不足
-→ 升级模型
+→ 在允许的 child pool 内升级
 
-信息充分且模型合适，但推理深度不足
-→ 提升 reasoning
+推理深度不足
+→ 提高 reasoning，但不能越过对应上限
+
+需要 root-class child
+→ 只有 GPT-6 Astra Ultra exception 可用
 ```
 
-不要使用更高 reasoning 或重新读取整个 Skill 去补偿缺失的文件、权限、信息或不清晰的任务合同。
+## 主 Agent 必须简洁报告 Subagent 调用
+
+只要使用了 Subagent，最终回复必须一行一个，简洁报告：模型、reasoning、context、Skill 权限、必要的访问模式和结果。
+
+推荐格式：
+
+```text
+Luna | Low | FRAGMENT | Skills: NONE | read-only | 结果：检查通过
+Terra | Medium | LOCAL | Skills: NONE | write: chapter5.tex | 结果：修改完成
+```
+
+不要输出思维链、逐工具日志、阅读流水账或长篇 dispatch prompt。
+
+没有调用 Subagent 时，不需要报告。
 
 ## 两种场景
 
 ### Scientific Writing
 
-`scientific-writing/` 负责科技写作和科研工作中的 Subagent 调度，例如科研论文、学术专著、LaTeX、科学结果解释、文献整合、图和图注、术语与跨章节一致性以及 scientific review。
+`scientific-writing/` 负责科研论文、学术专著、LaTeX、结果解释、文献整合、图注和跨章节一致性等任务中的 Subagent 调度。
 
 ### Code Development
 
-`code-development/` 负责软件开发场景中的 Subagent 调度，例如 repository inspection、implementation、debugging、refactoring、testing、build / lint / type check、diff review 和 integration verification。
+`code-development/` 负责 repository inspection、implementation、debugging、refactoring、testing、build/lint/type check、diff review 和 integration verification 等任务中的 Subagent 调度。
 
-混合任务应先拆成两个工作流，再分别加载对应场景 Skill。不要因为总任务同时包含写作和代码，就让所有 Subagent 同时读取两套规则。
+混合任务先拆成独立工作流，不让所有 Subagent 同时读取两套场景规则。
 
 ## 推荐工作流
 
 ```text
 理解任务
-→ 主 Agent 读取必要 Skill
+→ root 读取必要 Skill
 → 判断是否值得委派
-→ 拆分为有边界的子任务
-→ 提取每个子任务所需约束
-→ 默认设置 Allowed skill reads: NONE
-→ 选择模型和 reasoning
+→ 拆成 bounded tasks
+→ 提取任务相关约束
+→ 默认 Allowed skill reads: NONE
+→ 选择允许的 child model + reasoning
 → 提供最小必要上下文
-→ 派遣 Subagent
-→ 验证结果
-→ 主 Agent 集成
-→ 简洁报告子 Agent 配置和结果
+→ 派遣
+→ 验证
+→ 集成
+→ 简洁报告 Subagent 配置和结果
 ```
 
 ## 参考
