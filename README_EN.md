@@ -33,7 +33,7 @@ The normal subagent pool is:
 ```text
 Sol   ≤ High
 Terra ≤ High
-Luna  ≤ Medium
+Luna  ≤ High
 ```
 
 Therefore, under ordinary operation:
@@ -235,11 +235,11 @@ A child must not independently increase model strength, reasoning effort, permis
 
 ### Luna
 
-Search, grep, file discovery, compilation, tests, lint, diff/status inspection, and deterministic checks.
+Search, grep, file discovery, compilation, tests, lint, diff/status inspection, filtering, checks, and bounded lightweight review.
 
 ```text
-Default: Low
-Maximum: Medium
+Default: Low / Medium
+Maximum: High
 ```
 
 ### Terra
