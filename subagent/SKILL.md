@@ -32,7 +32,7 @@ The normal subagent pool is:
 
 - Sol, up to `High`
 - Terra, up to `High`
-- Luna, up to `Medium`
+- Luna, up to `High`
 
 Therefore, under ordinary operation:
 
@@ -167,7 +167,7 @@ If no subagent was used, no subagent report is required.
 
 Choose the cheapest model and lowest reasoning effort that can reliably complete the bounded task while respecting the root-class boundary.
 
-- **Luna** — `Low` default, `Medium` if modest synthesis is needed; `High/Max/Ultra` forbidden. Use for search, inspection, execution, compile/test/lint/grep/diff and deterministic checks.
+- **Luna** — `Low` for simple execution, `Medium` for normal inspection/review, `High` for difficult bounded work; `Max/Ultra` forbidden. If Luna High is insufficient, prefer Terra or Sol according to the task.
 - **Terra** — `Low` for simple execution, `Medium` for normal implementation/editing, `High` for difficult bounded work; `Max/Ultra` forbidden. If Terra High is insufficient, prefer Sol.
 - **Sol** — `Medium` default for substantive reasoning, `High` for difficult reasoning/debug/review. `Max/Ultra` are root-class configurations and forbidden as children except under the GPT-6 Astra Ultra exception.
 - **Astra** — root-class and forbidden as a child except under the GPT-6 Astra Ultra exception.
