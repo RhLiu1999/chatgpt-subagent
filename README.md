@@ -33,7 +33,7 @@
 ```text
 Sol   ≤ High
 Terra ≤ High
-Luna  ≤ Medium
+Luna  ≤ High
 ```
 
 因此正常情况下：
@@ -235,11 +235,11 @@ Verification criterion
 
 ### Luna
 
-搜索、grep、文件定位、编译、测试、lint、diff/status 和确定性检查。
+搜索、grep、文件定位、编译、测试、lint、diff/status、检查、筛选和边界明确的轻量审计。
 
 ```text
-默认：Low
-最高：Medium
+默认：Low / Medium
+最高：High
 ```
 
 ### Terra
